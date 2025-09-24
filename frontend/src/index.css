@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+/* ~ different fonts ~ */
+.slab {
+    font-family: "Roboto Slab", sans-serif;
+}
+
+.bask {
+    font-family: "Libre Baskerville", serif;
+}
+
+.figtree {
+    font-family: "Figtree", sans-serif;
+    font-optical-sizing: auto;
+    font-weight: 800;
+    font-style: normal;
+}
