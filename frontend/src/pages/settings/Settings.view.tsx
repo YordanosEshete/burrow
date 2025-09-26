@@ -139,7 +139,7 @@ export default function Settings() {
                         htmlFor="phoneNumber"
                         className="block text-sm font-medium text-gray-700 mb-1"
                     >
-                        Phone Number (optional)
+                        Phone Number (If you wanna lol)
                     </label>
 
                     <input
