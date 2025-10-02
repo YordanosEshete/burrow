@@ -11,7 +11,6 @@ import app.burrow.groups.models.MeetingRole
 import app.burrow.query
 import io.ktor.util.date.getTimeMillis
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.sql.JoinType
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.and
@@ -63,11 +62,8 @@ data class Membership(
  */
 suspend fun getUserMeetings(user: String): List<GroupMeetingResponse> {
     val result = query {
-        Memberships.join(
-                Meetings,
-                JoinType.INNER,
-                additionalConstraint = { Memberships.meetingId eq Meetings.id },
-            )
+        Memberships.innerJoin(Meetings, { Memberships.meetingId }, { Meetings.id })
+            .innerJoin(Users, { Meetings.owner }, { Users.googleID })
             .selectAll()
             .where {
                 (Memberships.userId eq user) and // the user's meetings
@@ -82,6 +78,7 @@ suspend fun getUserMeetings(user: String): List<GroupMeetingResponse> {
     return result.map { row ->
         GroupMeetingResponse(
             meeting = GroupMeeting.fromRow(row),
+            meetingAuthor = row[Users.name],
             membership = Membership.fromRow(row = row),
             bookmarked = false,
         )
@@ -265,4 +262,16 @@ suspend fun getAttendees(meetingId: String): List<MembershipResponse> {
     }
 
     return attendees
+}
+
+/**
+ * Check if a [userId] is in a [meetingId].
+ *
+ * @param userId The user to check for.
+ * @param meetingId The meeting the user may be in.
+ */
+suspend fun userInMeeting(userId: String, meetingId: String): Boolean = query {
+    Memberships.selectAll()
+        .where { (Memberships.userId eq userId) and (Memberships.meetingId eq meetingId) }
+        .firstOrNull() != null
 }

@@ -2,6 +2,7 @@ package app.burrow.groups
 
 import app.burrow.groups.bookmarks.createBookmark
 import app.burrow.groups.bookmarks.deleteBookmark
+import app.burrow.groups.chat.GROUP_CHAT_ROUTES
 import app.burrow.groups.membership.getAttendees
 import app.burrow.groups.membership.getUserMeetings
 import app.burrow.groups.membership.joinMeeting

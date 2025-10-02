@@ -3,6 +3,7 @@ package app.burrow
 import app.burrow.account.Users
 import app.burrow.groups.Meetings
 import app.burrow.groups.bookmarks.Bookmarks
+import app.burrow.groups.chat.ChatMessages
 import app.burrow.groups.membership.Memberships
 import kotlinx.coroutines.Dispatchers
 import org.jetbrains.exposed.sql.Database
@@ -31,5 +32,5 @@ suspend fun initDb() {
         password = "postgres",
     )
 
-    query { SchemaUtils.createMissingTablesAndColumns(Users, Meetings, Memberships, Bookmarks) }
+    query { SchemaUtils.createMissingTablesAndColumns(Users, Meetings, Memberships, Bookmarks, ChatMessages) }
 }

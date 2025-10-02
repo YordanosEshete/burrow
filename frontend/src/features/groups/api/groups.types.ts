@@ -85,6 +85,7 @@ export interface MeetingMembershipResponse {
  */
 export interface GroupMeetingResponse {
     meeting: GroupMeeting
+    meetingAuthor?: string
     membership?: MeetingMembership
     bookmarked: boolean
 }

@@ -1,12 +1,12 @@
-import { useQuery } from "@tanstack/react-query"
+import {useQuery} from "@tanstack/react-query"
 import type {
     MeetingRole,
     MeetingMembershipResponse
-} from "@features/groups/api/groups.types"
-import { useParams } from "react-router"
-import { useAtom } from "jotai"
-import { authToken } from "@features/auth/api/auth.atom.ts"
-import { getAttendees } from "@features/groups/api/groups.api.ts"
+} from "@features/groups/api/groups.types.ts"
+import {useParams} from "react-router"
+import {useAtom} from "jotai"
+import {authToken} from "@features/auth/api/auth.atom.ts"
+import {getAttendees} from "@features/groups/api/groups.api.ts"
 
 /**
  * The color depending on the role.
@@ -35,7 +35,8 @@ function WaitlistIcon() {
             fill="currentColor"
             className="h-4 w-4 text-amber-600"
         >
-            <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 5.5a.75.75 0 0 0-1.5 0v4.25c0 .199.079.39.22.53l2.5 2.5a.75.75 0 1 0 1.06-1.06l-2.28-2.28Z" />
+            <path
+                d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm.75 5.5a.75.75 0 0 0-1.5 0v4.25c0 .199.079.39.22.53l2.5 2.5a.75.75 0 1 0 1.06-1.06l-2.28-2.28Z"/>
         </svg>
     )
 }
@@ -44,10 +45,10 @@ function WaitlistIcon() {
  * View all attendees in a group.
  */
 export default function ViewAttendees() {
-    const { id } = useParams<{ id: string }>()
+    const {id} = useParams<{ id: string }>()
     const [auth] = useAtom(authToken)
 
-    const { data, isLoading, isError, error, refetch, isFetching } = useQuery<
+    const {data, isLoading, isError, error} = useQuery<
         MeetingMembershipResponse[]
     >({
         queryKey: ["attendees", id],
@@ -63,38 +64,7 @@ export default function ViewAttendees() {
     })
 
     return (
-        <div className="mx-auto w-full max-w-2xl px-4 py-8">
-            <div className="mb-4 flex items-center justify-between">
-                {/* title */}
-                <div>
-                    <h1 className="text-2xl figtree text-gray-900">
-                        Attendees
-                    </h1>
-                    <p className="mt-1 text-sm text-gray-600">
-                        People who have joined or are currently waitlisted.
-                    </p>
-                </div>
-
-                {/* refresh button */}
-                <div className="flex items-center gap-2">
-                    <button
-                        onClick={() => refetch()}
-                        disabled={isFetching}
-                        className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:shadow-md disabled:opacity-50"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="currentColor"
-                            className="h-4 w-4"
-                        >
-                            <path d="M12 2a10 10 0 1 0 10 10h-2a8 8 0 1 1-8-8V2Zm1 0v10l7 4-.9 1.79L11 13V2h2Z" />
-                        </svg>
-                        Refresh
-                    </button>
-                </div>
-            </div>
-
+        <div className="mx-auto w-full px-4">
             {isLoading && (
                 <div className="rounded-lg border border-gray-200 bg-white p-4 text-gray-600">
                     Loading attendees…
@@ -124,10 +94,11 @@ export default function ViewAttendees() {
 
                                             {m.membership.status ===
                                                 "WAITLISTED" && (
-                                                <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700">
-                                                    <WaitlistIcon /> Waitlisted
+                                                    <span
+                                                        className="inline-flex items-center gap-1 text-xs font-medium text-amber-700">
+                                                    <WaitlistIcon/> Waitlisted
                                                 </span>
-                                            )}
+                                                )}
                                         </div>
                                         <div className="text-xs text-gray-600">
                                             Joined{" "}

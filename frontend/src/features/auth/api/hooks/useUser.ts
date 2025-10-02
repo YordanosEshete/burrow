@@ -19,6 +19,7 @@ export default function useUser(): User | null {
     // if the request fails, log the user out
     if (auth !== "" && error) {
         setAuth("")
+        return null
     }
 
     // the user is not logged in
