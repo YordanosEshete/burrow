@@ -58,7 +58,7 @@ export default function LandingView() {
         <div className="flex flex-col items-center">
             {/* big gohher */}
             <div className="relative mt-8 w-full overflow-hidden rounded-2xl">
-                <div className="h-[22rem] w-full bg-[url('/realgopher.png')] bg-cover bg-center" />
+                <div className="h-[22rem] w-full bg-[url('/realgopher.png')] bg-[position:center_calc(100%+225px)]" />
                 <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
                 <div className="absolute inset-0 flex flex-col items-center justify-end pb-8 text-center">
                     <h1 className="figtree text-7xl font-extrabold tracking-tight text-white drop-shadow-md">

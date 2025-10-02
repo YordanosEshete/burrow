@@ -1,5 +1,6 @@
 package app.burrow.groups.models
 
+import app.burrow.account.Users
 import app.burrow.groups.Meetings
 import app.burrow.groups.bookmarks.Bookmark
 import app.burrow.groups.bookmarks.Bookmarks
@@ -19,7 +20,9 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.greaterEq
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteWhere
+import org.jetbrains.exposed.sql.innerJoin
 import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.lowerCase
 import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.selectAll
 
@@ -141,7 +144,12 @@ suspend fun createGroupMeeting(id: String, meeting: SubmittedGroupMeeting): Grou
  */
 suspend fun getMeeting(id: String, user: String): GroupMeetingResponse? {
     val meeting =
-        query { Meetings.selectAll().where { Meetings.id eq id }.firstOrNull() } ?: return null
+        query {
+            Meetings.innerJoin(Users, { Meetings.owner }, { Users.googleID })
+                .selectAll()
+                .where { Meetings.id eq id }
+                .firstOrNull()
+        } ?: return null
 
     val membership =
         query {
@@ -158,7 +166,12 @@ suspend fun getMeeting(id: String, user: String): GroupMeetingResponse? {
                 .firstOrNull()
         } != null
 
-    return GroupMeetingResponse(GroupMeeting.fromRow(meeting), membership, bookmark)
+    return GroupMeetingResponse(
+        GroupMeeting.fromRow(meeting),
+        meeting[Users.name],
+        membership,
+        bookmark,
+    )
 }
 
 /**
@@ -176,27 +189,29 @@ suspend fun deleteMeeting(id: String) = query { Meetings.deleteWhere { Meetings.
  * @param type The type of group. Leave null for all.
  */
 suspend fun getMeetings(user: String? = null, type: GroupType? = null): List<GroupMeetingResponse> {
-    val meetings: List<GroupMeeting> = query {
+    val meetings: Map<GroupMeeting, String> = query {
         var expr: Op<Boolean> = (Meetings.endTime greaterEq getTimeMillis())
 
         if (type != null) {
             expr = (expr) and (Meetings.kind eq type)
         }
 
-        Meetings.selectAll().where(expr).orderBy(Meetings.beginningTime, SortOrder.ASC).map { row ->
-            GroupMeeting.fromRow(row)
-        }
+        Meetings.innerJoin(Users, { Meetings.owner }, { Users.googleID })
+            .selectAll()
+            .where(expr)
+            .orderBy(Meetings.beginningTime, SortOrder.ASC)
+            .associate { row -> GroupMeeting.fromRow(row) to row[Users.name] }
     }
 
     // guest user
     if (user == null || user.isBlank()) {
-        return meetings.map { meeting ->
-            GroupMeetingResponse(meeting = meeting, membership = null, bookmarked = false)
+        return meetings.map { (meeting) ->
+            GroupMeetingResponse(meeting = meeting, "", membership = null, bookmarked = false)
         }
     }
 
     val membershipByMeetingId: Map<String, Membership> = query {
-        val ids = meetings.map { it.id }
+        val ids = meetings.map { (meeting) -> meeting.id }
 
         if (ids.isEmpty()) return@query emptyMap()
 
@@ -206,7 +221,7 @@ suspend fun getMeetings(user: String? = null, type: GroupType? = null): List<Gro
     }
 
     val bookmarksByMeetingId: Map<String, Bookmark> = query {
-        val ids = meetings.map { it.id }
+        val ids = meetings.map { (meeting) -> meeting.id }
 
         if (ids.isEmpty()) return@query emptyMap()
 
@@ -215,9 +230,10 @@ suspend fun getMeetings(user: String? = null, type: GroupType? = null): List<Gro
             .associate { row -> row[Bookmarks.meetingId] to Bookmark.fromRow(row) }
     }
 
-    return meetings.map { meeting ->
+    return meetings.map { (meeting, author) ->
         GroupMeetingResponse(
             meeting = meeting,
+            meetingAuthor = author,
             membership = membershipByMeetingId[meeting.id],
             bookmarked = bookmarksByMeetingId.containsKey(meeting.id),
         )
@@ -233,22 +249,28 @@ suspend fun searchMeetings(search: String): List<GroupMeetingResponse> {
     val term = search.trim()
     if (term.isBlank()) return emptyList()
 
-    val pattern = "%" + term.replace("%", "\\%").replace("_", "\\_") + "%"
+    val pattern = "%" + term.lowercase().replace("%", "\\%").replace("_", "\\_") + "%"
 
-    val meetings: List<GroupMeeting> = query {
-        Meetings.selectAll()
+    val meetings: Map<GroupMeeting, String> = query {
+        Meetings.innerJoin(Users, { Meetings.owner }, { Users.googleID })
+            .selectAll()
             .where {
                 (Meetings.endTime greaterEq getTimeMillis()) and
-                    ((Meetings.title like pattern) or
-                        (Meetings.description like pattern) or
-                        (Meetings.location like pattern) or
-                        (Meetings.tags like pattern))
+                    ((Meetings.title.lowerCase() like pattern) or
+                        (Meetings.description.lowerCase() like pattern) or
+                        (Meetings.location.lowerCase() like pattern) or
+                        (Meetings.tags.lowerCase() like pattern))
             }
             .orderBy(Meetings.beginningTime, SortOrder.ASC)
-            .map { row -> GroupMeeting.fromRow(row) }
+            .associate { row -> GroupMeeting.fromRow(row) to row[Users.name] }
     }
 
-    return meetings.map { meeting ->
-        GroupMeetingResponse(meeting = meeting, membership = null, bookmarked = false)
+    return meetings.map { (meeting, author) ->
+        GroupMeetingResponse(
+            meeting = meeting,
+            meetingAuthor = author,
+            membership = null,
+            bookmarked = false,
+        )
     }
 }

@@ -8,6 +8,7 @@ import kotlinx.serialization.Serializable
  * which will dictate whether they should have a join / leave button.
  *
  * @param meeting The meeting.
+ * @param meetingAuthor The author's username.
  * @param membership The requesting user's membership to [meeting]. If this is guest request (only
  *   possible on requesting a SINGLE group), then this will be null.
  * @param bookmarked If the user requesting has this bookmarked. If this is a guest request, it will
@@ -16,6 +17,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class GroupMeetingResponse(
     val meeting: GroupMeeting,
+    val meetingAuthor: String?,
     val membership: Membership?,
     val bookmarked: Boolean,
 )

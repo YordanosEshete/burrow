@@ -1,4 +1,4 @@
-import { useMemo } from "react"
+import {useMemo} from "react"
 
 /**
  * A building at UMN
@@ -31,25 +31,25 @@ const umnBuildings: Building[] = [
         query: "Keller Hall, University of Minnesota",
         aliases: ["Keller", "EE/CS"]
     },
-    { name: "Amundson Hall", query: "Amundson Hall, University of Minnesota" },
+    {name: "Amundson Hall", query: "Amundson Hall, University of Minnesota"},
     {
         name: "Bruininks Hall",
         query: "Bruininks Hall, University of Minnesota",
         aliases: ["Bruininks", "BHH"]
     },
-    { name: "Kolthoff Hall", query: "Kolthoff Hall, University of Minnesota" },
-    { name: "Smith Hall", query: "Smith Hall, University of Minnesota" },
-    { name: "Ford Hall", query: "Ford Hall, University of Minnesota" },
-    { name: "Murphy Hall", query: "Murphy Hall, University of Minnesota" },
-    { name: "Rapson Hall", query: "Rapson Hall, University of Minnesota" },
+    {name: "Kolthoff Hall", query: "Kolthoff Hall, University of Minnesota"},
+    {name: "Smith Hall", query: "Smith Hall, University of Minnesota"},
+    {name: "Ford Hall", query: "Ford Hall, University of Minnesota"},
+    {name: "Murphy Hall", query: "Murphy Hall, University of Minnesota"},
+    {name: "Rapson Hall", query: "Rapson Hall, University of Minnesota"},
     {
         name: "Tate Hall",
         query: "Tate Hall, University of Minnesota",
         aliases: ["Tate"]
     },
-    { name: "Fraser Hall", query: "Fraser Hall, University of Minnesota" },
-    { name: "Anderson Hall", query: "Anderson Hall, University of Minnesota" },
-    { name: "Johnston Hall", query: "Johnston Hall, University of Minnesota" },
+    {name: "Fraser Hall", query: "Fraser Hall, University of Minnesota"},
+    {name: "Anderson Hall", query: "Anderson Hall, University of Minnesota"},
+    {name: "Johnston Hall", query: "Johnston Hall, University of Minnesota"},
     {
         name: "Walter Library",
         query: "Walter Library, University of Minnesota",
@@ -93,7 +93,7 @@ type MeetingLocationProps = {
  *
  * @param location The user-provided location of the meeting.
  */
-export default function MeetingLocation({ location }: MeetingLocationProps) {
+export default function MeetingLocation({location}: MeetingLocationProps) {
     // see if one of the building includes location
     const hit = useMemo(() => {
         const lower = location.toLowerCase()
@@ -109,22 +109,16 @@ export default function MeetingLocation({ location }: MeetingLocationProps) {
         return null
     }, [location])
 
-    // if there's no location, show nothing :(
-    if (!hit) {
-        return <></>
-    }
-
     return (
-        <section className="mb-6 rounded-2xl border border-gray-200 bg-gray-50 p-4 shadow-inner">
-            <iframe
-                width="100%"
-                height="260px"
-                frameBorder="0"
-                src={`https://www.google.com/maps/embed/v1/place?key=${API_KEY}&q=${encodeURIComponent(
-                    hit
-                )}&maptype=roadmap`}
-                allowFullScreen
-            />
+        <section className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+            <div className="p-4">
+                <h3 className="text-sm font-semibold text-gray-700">Location</h3>
+                <p className="mt-1 text-gray-900">{location}</p>
+            </div>
+            {hit && <iframe title="map" className="w-full h-64 border-t border-gray-200"
+                            src={`https://www.google.com/maps/embed/v1/place?key=${API_KEY}&q=${encodeURIComponent(
+                                hit
+                            )}&maptype=roadmap`} loading="lazy"/>}
         </section>
     )
 }
