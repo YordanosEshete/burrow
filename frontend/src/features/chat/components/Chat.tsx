@@ -43,7 +43,8 @@ export default function Chat({message, names, deleteButton, editButton}: ChatPro
             <div className="flex flex-row justify-between items-center">
                 <span className="text-gray-800">{message.message}</span>
                 <div className="group-hover:inline-flex hidden flex-row gap-2 text-sm">
-                    <button aria-label="Edit" className="cursor-pointer text-blue-500 hover:text-blue-700">
+                    <button onClick={() => editButton("debug")} aria-label="Edit"
+                            className="cursor-pointer text-blue-500 hover:text-blue-700">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24"
                              stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}

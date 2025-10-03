@@ -13,9 +13,12 @@ import io.ktor.util.date.getTimeMillis
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.alias
 import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.countDistinct
 import org.jetbrains.exposed.sql.innerJoin
 import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.leftJoin
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
 
@@ -194,6 +197,33 @@ suspend fun leaveMeeting(user: String, meeting: String) {
             it[leftAt] = getTimeMillis()
         }
     }
+
+    // the user who was waitlisted last gets first dibs
+    query {
+        val earliestWaitlist =
+            Memberships.selectAll()
+                .where {
+                    (Memberships.meetingId eq meeting) and
+                        (Memberships.status eq MeetingMemberStatus.WAITLISTED)
+                }
+                .orderBy(Memberships.joinedAt, SortOrder.DESC)
+                .firstOrNull()
+
+        if (earliestWaitlist != null) {
+            val waitingUser = earliestWaitlist[Memberships.userId]
+
+            Memberships.update(
+                where = {
+                    (Memberships.userId eq waitingUser) and (Memberships.meetingId eq meeting)
+                }
+            ) {
+                // welcome to the club :)
+                it[Memberships.status] = MeetingMemberStatus.JOINED
+            }
+
+            // TODO: in the future, send a notification that they're in
+        }
+    }
 }
 
 /**
@@ -210,6 +240,27 @@ suspend fun joinMeeting(user: String, meeting: String) {
             .firstOrNull()
     }
 
+    val joinedAlias = Memberships.alias("m_joined")
+    val joinedCountExpr = joinedAlias[Memberships.meetingId].countDistinct().alias("joined_count")
+
+    val countCapacity = query {
+        Meetings.leftJoin(
+                joinedAlias,
+                { Meetings.id },
+                { joinedAlias[Memberships.meetingId] },
+                additionalConstraint = {
+                    joinedAlias[Memberships.status] eq MeetingMemberStatus.JOINED
+                },
+            )
+            .selectAll()
+            .where { Meetings.id eq meeting }
+            .groupBy(Meetings.capacity)
+            .first()
+    }
+
+    val count = countCapacity[joinedCountExpr]
+    val capacity = countCapacity[Meetings.capacity]
+
     // the user already has seen this place..
     if (existingMembership != null) {
         when {
@@ -218,7 +269,21 @@ suspend fun joinMeeting(user: String, meeting: String) {
                 throw ServerError(401, "You are not authorized to join this meeting.")
             }
 
-            // previously left, adjust them be joined
+            // waitlist previous
+            existingMembership[Memberships.status] == MeetingMemberStatus.LEFT &&
+                count >= capacity -> {
+                query {
+                    Memberships.update({
+                        (Memberships.userId eq user) and (Memberships.meetingId eq meeting)
+                    }) {
+                        it[status] = MeetingMemberStatus.WAITLISTED
+                        it[leftAt] = null
+                        it[joinedAt] = getTimeMillis()
+                    }
+                }
+            }
+
+            // previously joined, ok
             existingMembership[Memberships.status] == MeetingMemberStatus.LEFT -> {
                 query {
                     Memberships.update({
@@ -241,7 +306,10 @@ suspend fun joinMeeting(user: String, meeting: String) {
                 it[userId] = user
                 it[meetingId] = meeting
                 it[joinedAt] = getTimeMillis()
-                it[status] = MeetingMemberStatus.JOINED
+                // status depending on count
+                it[status] =
+                    if (count >= capacity) MeetingMemberStatus.WAITLISTED
+                    else MeetingMemberStatus.JOINED
                 it[role] = MeetingRole.MEMBER
             }
         }

@@ -1,5 +1,6 @@
 package app.burrow.groups.models
 
+import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.concurrent.TimeUnit
@@ -70,9 +71,9 @@ fun SubmittedGroupMeeting.validateSubmittedGroupMeeting(): List<String> {
         errors += "The meeting time must be at least 15 minutes."
     }
 
-    val zone = ZoneId.systemDefault()
+    val zone = ZoneId.of("America/Chicago")
     fun dayKey(epochMillis: Long): Pair<Int, Int> {
-        val zdt = ZonedDateTime.ofInstant(java.time.Instant.ofEpochMilli(epochMillis), zone)
+        val zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(epochMillis), zone)
         return zdt.dayOfYear to zdt.year
     }
 

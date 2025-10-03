@@ -19,8 +19,6 @@ object Meetings : Table("group_meetings") {
     val tags = text("tags")
     val creationDate = long("creation_date")
     val capacity = integer("capacity")
-    val joined = integer("joined")
-    val waiting = integer("waiting")
 
     override val primaryKey = PrimaryKey(id)
 }
