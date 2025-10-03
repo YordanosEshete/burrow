@@ -13,12 +13,9 @@ import io.ktor.util.date.getTimeMillis
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
-import org.jetbrains.exposed.sql.alias
 import org.jetbrains.exposed.sql.and
-import org.jetbrains.exposed.sql.countDistinct
 import org.jetbrains.exposed.sql.innerJoin
 import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.leftJoin
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
 
@@ -212,11 +209,9 @@ suspend fun leaveMeeting(user: String, meeting: String) {
         if (earliestWaitlist != null) {
             val waitingUser = earliestWaitlist[Memberships.userId]
 
-            Memberships.update(
-                where = {
-                    (Memberships.userId eq waitingUser) and (Memberships.meetingId eq meeting)
-                }
-            ) {
+            Memberships.update({
+                (Memberships.userId eq waitingUser) and (Memberships.meetingId eq meeting)
+            }) {
                 // welcome to the club :)
                 it[Memberships.status] = MeetingMemberStatus.JOINED
             }
@@ -240,26 +235,15 @@ suspend fun joinMeeting(user: String, meeting: String) {
             .firstOrNull()
     }
 
-    val joinedAlias = Memberships.alias("m_joined")
-    val joinedCountExpr = joinedAlias[Memberships.meetingId].countDistinct().alias("joined_count")
-
-    val countCapacity = query {
-        Meetings.leftJoin(
-                joinedAlias,
-                { Meetings.id },
-                { joinedAlias[Memberships.meetingId] },
-                additionalConstraint = {
-                    joinedAlias[Memberships.status] eq MeetingMemberStatus.JOINED
-                },
-            )
-            .selectAll()
-            .where { Meetings.id eq meeting }
-            .groupBy(Meetings.capacity)
-            .first()
+    val count = query {
+        Memberships.selectAll().where { (Memberships.meetingId eq meeting) }.count()
     }
 
-    val count = countCapacity[joinedCountExpr]
-    val capacity = countCapacity[Meetings.capacity]
+    val capacity = query {
+        Meetings.select(Meetings.id, Meetings.capacity)
+            .where { Meetings.id eq meeting }
+            .first()[Meetings.capacity]
+    }
 
     // the user already has seen this place..
     if (existingMembership != null) {

@@ -9,8 +9,6 @@ import app.burrow.groups.membership.Memberships
 import app.burrow.query
 import io.ktor.util.date.getTimeMillis
 import java.util.UUID
-import kotlin.and
-import kotlin.or
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.Op
@@ -28,6 +26,7 @@ import org.jetbrains.exposed.sql.leftJoin
 import org.jetbrains.exposed.sql.lowerCase
 import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.update
 
 /**
  * A group meeting.
@@ -140,12 +139,21 @@ suspend fun createGroupMeeting(id: String, meeting: SubmittedGroupMeeting): Grou
 }
 
 /**
- * Get a meeting by its ID.
+ * Get a meeting by its [id].
+ *
+ * @param id The ID of the meeting.
+ */
+suspend fun getMeeting(id: String): GroupMeeting? = query {
+    Meetings.selectAll().where { Meetings.id eq id }.firstOrNull()?.let { GroupMeeting.fromRow(it) }
+}
+
+/**
+ * Get a [GroupMeetingResponse] by its ID.
  *
  * @param id The ID of the meeting.
  * @param user The ID of the user requesting, to combine the membership information.
  */
-suspend fun getMeeting(id: String, user: String): GroupMeetingResponse? = query {
+suspend fun getMeetingResponse(id: String, user: String): GroupMeetingResponse? = query {
     val joinedAlias = Memberships.alias("m_joined")
     val waitingAlias = Memberships.alias("m_waiting")
 
@@ -207,6 +215,24 @@ suspend fun getMeeting(id: String, user: String): GroupMeetingResponse? = query 
  * @param id The ID of the meeting to delete.
  */
 suspend fun deleteMeeting(id: String) = query { Meetings.deleteWhere { Meetings.id eq id } }
+
+/**
+ * Update a meeting by its [id].
+ *
+ * @param id The ID of the meeting to update.
+ * @param meeting The updated contents of the meeting.
+ */
+suspend fun updateMeeting(id: String, meeting: SubmittedGroupMeeting) = query {
+    Meetings.update({ Meetings.id eq id }) {
+        it[Meetings.title] = meeting.title
+        it[Meetings.description] = meeting.description
+        it[Meetings.location] = meeting.location
+        it[Meetings.beginningTime] = meeting.beginningTime
+        it[Meetings.endTime] = meeting.endTime
+        it[Meetings.tags] = Json.encodeToString(meeting.tags)
+        it[Meetings.capacity] = meeting.capacity
+    }
+}
 
 /**
  * Retrieve all [GroupMeeting]s.

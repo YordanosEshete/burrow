@@ -25,12 +25,28 @@ suspend fun initDb() {
 
     logger.debug("Connecting to {}", postgresUrl)
 
-    Database.connect(
-        postgresUrl,
-        driver = "org.postgresql.Driver",
-        user = "postgres",
-        password = "postgres",
-    )
+    val failed =
+        runCatching {
+                Database.connect(
+                    postgresUrl,
+                    driver = "org.postgresql.Driver",
+                    user = "postgres",
+                    password = "postgres",
+                )
+            }
+            .isFailure
 
-    query { SchemaUtils.createMissingTablesAndColumns(Users, Meetings, Memberships, Bookmarks, ChatMessages) }
+    if (failed) {
+        println("FATAL: Failed to connect to database.")
+    }
+
+    query {
+        SchemaUtils.createMissingTablesAndColumns(
+            Users,
+            Meetings,
+            Memberships,
+            Bookmarks,
+            ChatMessages,
+        )
+    }
 }

@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import StudyGroupModal from "./StudyGroupModal.tsx"
 import type { GroupType } from "@features/groups/api/groups.types.ts"
+import CreateStudyGroupModal from "@features/create/components/CreateStudyGroupModal.tsx"
 
 /**
  * {@link Create}
@@ -59,9 +59,10 @@ export default function Create({ visible }: Props) {
             className={"fixed bottom-6 right-6 z-50 select-none"}
             aria-live="polite"
         >
-            <StudyGroupModal
+            <CreateStudyGroupModal
                 open={modalOpen}
                 onClose={() => setModalOpen(false)}
+                title="Create a Study Group"
             />
 
             {/* main menu */}

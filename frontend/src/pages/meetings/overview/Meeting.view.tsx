@@ -3,17 +3,17 @@ import { useQuery } from "@tanstack/react-query"
 import { useAtom } from "jotai"
 import { authToken } from "@features/auth/api/auth.atom.ts"
 import useUser from "@features/auth/api/hooks/useUser.ts"
-import { toast } from "react-hot-toast"
 import { useMemo } from "react"
 import { getMeeting } from "@features/groups/api/groups.api.ts"
 import MeetingLocation from "@pages/meetings/components/MeetingLocation.tsx"
-import DeleteMeeting from "@pages/meetings/components/DeleteMeeting.tsx"
+import DeleteMeeting from "@pages/meetings/overview/component/DeleteMeeting.tsx"
 import { formatDateTime } from "@api/Util.ts"
 import Badge from "@components/Badge.tsx"
 import BookmarkMeeting from "@pages/meetings/overview/component/BookmarkMeeting.tsx"
 import ShareMeeting from "@pages/meetings/overview/component/ShareMeeting.tsx"
 import JoinMeeting from "@pages/meetings/overview/component/JoinMeeting.tsx"
 import MeetingCapacityBadges from "@features/groups/components/MeetingCapacityBadges.tsx"
+import EditMeeting from "@pages/meetings/overview/component/EditMeeting.tsx"
 
 /**
  * View an individual meeting.
@@ -28,7 +28,7 @@ export default function Meeting() {
     const user = useUser()
 
     const { data, isLoading, error } = useQuery({
-        queryKey: ["meeting", id],
+        queryKey: [`meeting`, id],
         enabled: id !== null && auth !== null,
         queryFn: () => (id ? getMeeting(auth, id) : null)
     })
@@ -126,14 +126,7 @@ export default function Meeting() {
                     <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                         {isOwner && (
                             <>
-                                <button
-                                    onClick={() => {
-                                        toast.success("Edit coming soon")
-                                    }}
-                                    className="cursor-pointer inline-flex items-center justify-center rounded-xl border border-blue-200 bg-blue-100 px-4 py-2 text-sm font-medium text-blue-800 shadow-sm transition hover:shadow-md"
-                                >
-                                    Edit
-                                </button>
+                                <EditMeeting meeting={meeting} />
                                 <DeleteMeeting meeting={meeting} />
                             </>
                         )}

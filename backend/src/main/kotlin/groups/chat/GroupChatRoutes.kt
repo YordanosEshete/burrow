@@ -5,7 +5,7 @@ import app.burrow.groups.chat.models.Incoming
 import app.burrow.groups.chat.models.Outgoing
 import app.burrow.groups.membership.userInMeeting
 import app.burrow.groups.models.MeetingRole
-import app.burrow.groups.models.getMeeting
+import app.burrow.groups.models.getMeetingResponse
 import io.ktor.http.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -81,7 +81,7 @@ private suspend fun WebSocketServerSession.wsEditMessage(
         return
     }
 
-    val meeting = getMeeting(id, userId)
+    val meeting = getMeetingResponse(id, userId)
     val message = getChatMessage(id, messageId)
 
     if (meeting == null || message == null || meeting.membership == null) {
@@ -121,7 +121,7 @@ private suspend fun WebSocketServerSession.wsDeleteMessage(
         return
     }
 
-    val meeting = getMeeting(id, userId)
+    val meeting = getMeetingResponse(id, userId)
     val message = getChatMessage(id, messageId)
 
     if (meeting == null || message == null || meeting.membership == null) {

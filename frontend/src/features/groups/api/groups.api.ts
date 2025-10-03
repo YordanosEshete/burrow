@@ -10,15 +10,15 @@ import type {
 /**
  * Create a group.
  *
- * @param auth
- * @param submittedGroup
+ * @param auth The authorization token.
+ * @param submittedGroup The submitted group.
  */
 export async function createMeeting(
     auth: string,
     submittedGroup: SubmittedGroupMeeting
 ): Promise<GroupMeeting | string[]> {
     const request = await fetch(`${BASE_URL}/groups`, {
-        method: "PUT",
+        method: "POST",
         headers: {
             "Content-Type": "application/json",
             Authorization: "Bearer " + auth
@@ -31,6 +31,32 @@ export async function createMeeting(
     }
 
     return await request.json()
+}
+
+/**
+ * Modify a group.
+ *
+ * @param auth The authorization token.
+ * @param meetingId The ID of the meeting to update.
+ * @param updatedGroup The updated group.
+ */
+export async function updateMeeting(
+    auth: string,
+    meetingId: string,
+    updatedGroup: SubmittedGroupMeeting
+) {
+    const request = await fetch(`${BASE_URL}/groups/${meetingId}`, {
+        method: "PATCH",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + auth
+        },
+        body: JSON.stringify(updatedGroup)
+    })
+
+    if (!request.ok) {
+        return (await request.json()).errors
+    }
 }
 
 /**

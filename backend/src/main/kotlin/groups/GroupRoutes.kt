@@ -1,20 +1,17 @@
 package app.burrow.groups
 
-import app.burrow.groups.bookmarks.createBookmark
-import app.burrow.groups.bookmarks.deleteBookmark
-import app.burrow.groups.chat.GROUP_CHAT_ROUTES
-import app.burrow.groups.membership.getAttendees
+import app.burrow.groups.bookmarks.bookmarkRoutes
 import app.burrow.groups.membership.getUserMeetings
-import app.burrow.groups.membership.joinMeeting
-import app.burrow.groups.membership.leaveMeeting
+import app.burrow.groups.membership.membershipRoutes
 import app.burrow.groups.models.GroupType
-import app.burrow.groups.models.MeetingMemberStatus
 import app.burrow.groups.models.SubmittedGroupMeeting
 import app.burrow.groups.models.createGroupMeeting
 import app.burrow.groups.models.deleteMeeting
 import app.burrow.groups.models.getMeeting
+import app.burrow.groups.models.getMeetingResponse
 import app.burrow.groups.models.getMeetings
 import app.burrow.groups.models.searchMeetings
+import app.burrow.groups.models.updateMeeting
 import app.burrow.groups.models.validateSubmittedGroupMeeting
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.jwt.JWTPrincipal
@@ -24,8 +21,8 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
+import io.ktor.server.routing.patch
 import io.ktor.server.routing.post
-import io.ktor.server.routing.put
 import io.ktor.server.routing.route
 
 /**
@@ -34,10 +31,8 @@ import io.ktor.server.routing.route
  * All routes are inherently authorized.
  */
 val GROUP_ROUTES: Route.() -> Unit = {
-    /**
-     * Retrieve all [app.burrow.groups.models.GroupMeeting] by it's
-     * [app.burrow.groups.models.GroupType].
-     */
+    // GET /groups
+    // get all group meetings
     get {
         val user =
             call.principal<JWTPrincipal>()?.subject
@@ -50,7 +45,8 @@ val GROUP_ROUTES: Route.() -> Unit = {
         call.respond(getMeetings(user, type))
     }
 
-    // get the three most recent
+    // GET /groups/schedule
+    // get the three most recent meetings
     get("/schedule") {
         val user =
             call.principal<JWTPrincipal>()?.subject
@@ -59,6 +55,7 @@ val GROUP_ROUTES: Route.() -> Unit = {
         call.respond(getUserMeetings(user))
     }
 
+    // GET /groups/search
     // search among the stars
     get("/search") {
         call.principal<JWTPrincipal>()?.subject ?: return@get call.respond(HttpStatusCode.Forbidden)
@@ -70,20 +67,44 @@ val GROUP_ROUTES: Route.() -> Unit = {
         call.respond(searchMeetings(searchQuery))
     }
 
-    /** Manage an individual meeting. */
+    // POST /groups
+    // create a meeting
+    post {
+        val user =
+            call.principal<JWTPrincipal>()?.subject
+                ?: return@post call.respond(HttpStatusCode.Forbidden)
+
+        val group = call.receive<SubmittedGroupMeeting>()
+        val errors = group.validateSubmittedGroupMeeting()
+
+        if (errors.isNotEmpty()) {
+            return@post call.respond(HttpStatusCode.BadRequest, mapOf("errors" to errors))
+        }
+
+        val createdGroup = createGroupMeeting(user, group)
+
+        call.respond(createdGroup)
+    }
+
+    // CRUD /groups/{id}
+    // manage an individual meeting
     route("/{id}") {
-        /** Receive a [app.burrow.groups.models.GroupMeeting] by its ID. */
+        // GET /groups/{id}
+        // retrieve an indivudal meeting
         get {
             val user =
                 call.principal<JWTPrincipal>()?.subject
                     ?: return@get call.respond(HttpStatusCode.Forbidden)
             val id = call.parameters["id"] ?: return@get call.respond(HttpStatusCode.BadRequest)
 
-            val meeting = getMeeting(id, user) ?: return@get call.respond(HttpStatusCode.NotFound)
+            val meeting =
+                getMeetingResponse(id, user) ?: return@get call.respond(HttpStatusCode.NotFound)
 
             call.respond(meeting)
         }
 
+        // DELETE /groups/{id}
+        // delete an individual meeting
         delete {
             val user =
                 call.principal<JWTPrincipal>()?.subject
@@ -91,7 +112,7 @@ val GROUP_ROUTES: Route.() -> Unit = {
             val id = call.parameters["id"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
 
             val meeting =
-                getMeeting(id, user) ?: return@delete call.respond(HttpStatusCode.NotFound)
+                getMeetingResponse(id, user) ?: return@delete call.respond(HttpStatusCode.NotFound)
 
             if (meeting.meeting.owner != user) {
                 return@delete call.respond(HttpStatusCode.Forbidden)
@@ -102,94 +123,34 @@ val GROUP_ROUTES: Route.() -> Unit = {
             call.respond(HttpStatusCode.OK)
         }
 
-        // get all attendees for this group
-        get("/attendees") {
+        // PATCH /groups/{id}
+        // update an individual meeting
+        patch {
             val user =
                 call.principal<JWTPrincipal>()?.subject
-                    ?: return@get call.respond(HttpStatusCode.Forbidden)
-            val id = call.parameters["id"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+                    ?: return@patch call.respond(HttpStatusCode.Forbidden)
+            val id = call.parameters["id"] ?: return@patch call.respond(HttpStatusCode.BadRequest)
 
-            val attendees = getAttendees(id)
+            val meeting = getMeeting(id) ?: return@patch call.respond(HttpStatusCode.NotFound)
 
-            // must be in the group to see the members!
-            val inGroup =
-                attendees.any { (membership) ->
-                    membership.userId == user && membership.status != MeetingMemberStatus.JOINED
-                }
-
-            if (inGroup) {
-                return@get call.respond(HttpStatusCode.Forbidden)
+            // the user is NOT the owner
+            if (meeting.owner != user) {
+                return@patch call.respond(HttpStatusCode.Forbidden)
             }
 
-            call.respond(getAttendees(id))
-        }
+            val group = call.receive<SubmittedGroupMeeting>()
+            val errors = group.validateSubmittedGroupMeeting()
 
-        /** Join a meeting. */
-        post("/join") {
-            val user =
-                call.principal<JWTPrincipal>()?.subject
-                    ?: return@post call.respond(HttpStatusCode.Forbidden)
-            val id = call.parameters["id"] ?: return@post call.respond(HttpStatusCode.BadRequest)
+            if (errors.isNotEmpty()) {
+                return@patch call.respond(HttpStatusCode.BadRequest, mapOf("errors" to errors))
+            }
 
-            joinMeeting(user, id)
+            updateMeeting(id, group)
 
             call.respond(HttpStatusCode.OK)
         }
 
-        /** Leave a meeting. */
-        post("/leave") {
-            val user =
-                call.principal<JWTPrincipal>()?.subject
-                    ?: return@post call.respond(HttpStatusCode.Forbidden)
-            val id = call.parameters["id"] ?: return@post call.respond(HttpStatusCode.BadRequest)
-
-            leaveMeeting(user, id)
-
-            call.respond(HttpStatusCode.OK)
-        }
-
-        /** Manage bookmarks on a meeting. */
-        route("/bookmark") {
-            put {
-                val user =
-                    call.principal<JWTPrincipal>()?.subject
-                        ?: return@put call.respond(HttpStatusCode.Forbidden)
-                val id = call.parameters["id"] ?: return@put call.respond(HttpStatusCode.BadRequest)
-
-                createBookmark(user, id)
-
-                call.respond(HttpStatusCode.OK)
-            }
-
-            delete {
-                val user =
-                    call.principal<JWTPrincipal>()?.subject
-                        ?: return@delete call.respond(HttpStatusCode.Forbidden)
-                val id =
-                    call.parameters["id"] ?: return@delete call.respond(HttpStatusCode.BadRequest)
-
-                deleteBookmark(user, id)
-
-                call.respond(HttpStatusCode.OK)
-            }
-        }
-    }
-
-    /** Create a [app.burrow.groups.models.GroupMeeting]. */
-    put {
-        val user =
-            call.principal<JWTPrincipal>()?.subject
-                ?: return@put call.respond(HttpStatusCode.Forbidden)
-
-        val group = call.receive<SubmittedGroupMeeting>()
-
-        val errors = group.validateSubmittedGroupMeeting()
-        if (errors.isNotEmpty()) {
-            return@put call.respond(HttpStatusCode.BadRequest, mapOf("errors" to errors))
-        }
-
-        val createdGroup = createGroupMeeting(user, group)
-
-        call.respond(createdGroup)
+        membershipRoutes()
+        bookmarkRoutes()
     }
 }
