@@ -32,7 +32,7 @@ export default function JoinMeeting({ data }: JoinMeetingProps) {
                 meeting: {
                     ...(old.meeting ?? {}),
                     joined:
-                        status === "JOINED" ? old.joined + 1 : old.joined - 1
+                        status === "JOINED" ? old.meeting.joined + 1 : old.meeting.joined - 1
                 },
                 membership: {
                     ...(old.membership ?? {}),
