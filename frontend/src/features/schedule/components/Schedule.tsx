@@ -7,6 +7,7 @@ import { useAtom } from "jotai"
 import { authToken } from "@features/auth/api/auth.atom.ts"
 import type { GroupMeetingResponse } from "@features/groups/api/groups.types.ts"
 import { useMemo } from "react"
+import { useNavigate } from "react-router"
 
 /**
  * An empty schedule entry.
@@ -30,6 +31,7 @@ function SkeletonRow() {
  */
 export default function Schedule() {
     const [auth] = useAtom(authToken)
+    const nav = useNavigate()
 
     const { data, isLoading, error, refetch, isFetching } = useQuery<
         GroupMeetingResponse[]
@@ -37,6 +39,10 @@ export default function Schedule() {
         queryKey: ["schedule", "next"],
         queryFn: () => getSchedule(auth)
     })
+
+    const onClick = (meetingId: string) => {
+        nav(`/meeting/${meetingId}`)
+    }
 
     const groups = useMemo(() => {
         // sort the data by the day label
@@ -53,7 +59,9 @@ export default function Schedule() {
     }, [data])
 
     return (
-        <section className="w-full max-w-full sm:max-w-2xl">
+        <section
+            className="w-full max-w-full sm:max-w-2xl"
+        >
             <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-2xl figtree mt-8">My Schedule</h2>
             </div>
@@ -91,7 +99,8 @@ export default function Schedule() {
                                 {group.items.map((it) => (
                                     <li
                                         key={it.meeting.id}
-                                        className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
+                                        className="cursor-pointer rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
+                                        onClick={() => onClick(it.meeting.id)}
                                     >
                                         <div className="flex flex-col gap-1">
                                             <div className="flex items-center justify-between">

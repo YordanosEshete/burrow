@@ -1,11 +1,12 @@
 package app.burrow.groups.chat
 
 import app.burrow.account.VERIFIER
+import app.burrow.groups.chat.models.Action
 import app.burrow.groups.chat.models.Incoming
 import app.burrow.groups.chat.models.Outgoing
 import app.burrow.groups.membership.userInMeeting
 import app.burrow.groups.models.MeetingRole
-import app.burrow.groups.models.getMeeting
+import app.burrow.groups.models.getMeetingResponse
 import io.ktor.http.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -81,7 +82,7 @@ private suspend fun WebSocketServerSession.wsEditMessage(
         return
     }
 
-    val meeting = getMeeting(id, userId)
+    val meeting = getMeetingResponse(id, userId)
     val message = getChatMessage(id, messageId)
 
     if (meeting == null || message == null || meeting.membership == null) {
@@ -89,12 +90,7 @@ private suspend fun WebSocketServerSession.wsEditMessage(
         return
     }
 
-    val isModerator =
-        meeting.membership.role == MeetingRole.HOST ||
-            meeting.membership.role == MeetingRole.MODERATOR
-    val isMessageOwner = message.userId == userId
-
-    if (!isModerator && !isMessageOwner) {
+    if (message.userId != userId) {
         sendAction(Outgoing.ERROR, "You do not have permission to edit this message.")
         return
     }
@@ -121,7 +117,7 @@ private suspend fun WebSocketServerSession.wsDeleteMessage(
         return
     }
 
-    val meeting = getMeeting(id, userId)
+    val meeting = getMeetingResponse(id, userId)
     val message = getChatMessage(id, messageId)
 
     if (meeting == null || message == null || meeting.membership == null) {
@@ -213,11 +209,15 @@ val GROUP_CHAT_ROUTES: Route.() -> Unit = {
                                     ),
                                 )
 
+                                // gives the joining user the current members
+                                // lets the existing users see the user who just joined
+                                ChatSessions.broadcast(
+                                    id,
+                                    Action(Outgoing.MEMBERS, getChatMembers(id)),
+                                )
+
                                 val chatHistory = getChatHistory(id, 0)
                                 sendAction(Outgoing.HISTORY, chatHistory)
-
-                                val chatMembers = getChatMembers(id)
-                                sendAction(Outgoing.MEMBERS, chatMembers)
                             }
                         } else if (userId != null) {
                             handleIncomingRequest(action, incomingMsg, id, userId)

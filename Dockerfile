@@ -1,4 +1,4 @@
-FROM gradle:latest AS backend-build
+FROM gradle:8.14.3-jdk21 AS backend-build
 WORKDIR /backend
 COPY backend /backend
 

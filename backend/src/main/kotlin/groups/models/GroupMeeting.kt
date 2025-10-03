@@ -9,8 +9,6 @@ import app.burrow.groups.membership.Memberships
 import app.burrow.query
 import io.ktor.util.date.getTimeMillis
 import java.util.UUID
-import kotlin.and
-import kotlin.or
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.sql.Op
@@ -18,13 +16,17 @@ import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.greaterEq
+import org.jetbrains.exposed.sql.alias
 import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.countDistinct
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.innerJoin
 import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.leftJoin
 import org.jetbrains.exposed.sql.lowerCase
 import org.jetbrains.exposed.sql.or
 import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.update
 
 /**
  * A group meeting.
@@ -55,16 +57,18 @@ data class GroupMeeting(
     val tags: Set<String>,
     val creationDate: Long,
     val capacity: Int,
-    val joined: Int,
-    val waiting: Int,
+    val joined: Long,
+    val waiting: Long,
 ) {
     companion object {
         /**
          * Form a [GroupMeeting] from a [ResultRow].
          *
          * @param row A [ResultRow] containing details on a [GroupMeeting]
+         * @param joined The amount of users who have joined.
+         * @param waiting The amount of user's on the waitlist.
          */
-        fun fromRow(row: ResultRow): GroupMeeting =
+        fun fromRow(row: ResultRow, joined: Long = -1, waiting: Long = -1): GroupMeeting =
             GroupMeeting(
                 id = row[Meetings.id],
                 owner = row[Meetings.owner],
@@ -76,9 +80,9 @@ data class GroupMeeting(
                 endTime = row[Meetings.endTime],
                 beginningTime = row[Meetings.beginningTime],
                 capacity = row[Meetings.capacity],
-                joined = row[Meetings.joined],
-                waiting = row[Meetings.waiting],
                 tags = Json.decodeFromString<Set<String>>(row[Meetings.tags]),
+                joined = joined,
+                waiting = waiting,
             )
     }
 }
@@ -120,8 +124,6 @@ suspend fun createGroupMeeting(id: String, meeting: SubmittedGroupMeeting): Grou
             it[tags] = Json.encodeToString(groupMeeting.tags)
             it[creationDate] = groupMeeting.creationDate
             it[capacity] = groupMeeting.capacity
-            it[joined] = groupMeeting.joined
-            it[waiting] = groupMeeting.waiting
         }
 
         Memberships.insert {
@@ -137,37 +139,70 @@ suspend fun createGroupMeeting(id: String, meeting: SubmittedGroupMeeting): Grou
 }
 
 /**
- * Get a meeting by its ID.
+ * Get a meeting by its [id].
+ *
+ * @param id The ID of the meeting.
+ */
+suspend fun getMeeting(id: String): GroupMeeting? = query {
+    Meetings.selectAll().where { Meetings.id eq id }.firstOrNull()?.let { GroupMeeting.fromRow(it) }
+}
+
+/**
+ * Get a [GroupMeetingResponse] by its ID.
  *
  * @param id The ID of the meeting.
  * @param user The ID of the user requesting, to combine the membership information.
  */
-suspend fun getMeeting(id: String, user: String): GroupMeetingResponse? {
+suspend fun getMeetingResponse(id: String, user: String): GroupMeetingResponse? = query {
+    val joinedAlias = Memberships.alias("m_joined")
+    val waitingAlias = Memberships.alias("m_waiting")
+
+    val joinedCountExpr = joinedAlias[Memberships.userId].countDistinct()
+    val waitingCountExpr = waitingAlias[Memberships.userId].countDistinct()
+
     val meeting =
-        query {
-            Meetings.innerJoin(Users, { Meetings.owner }, { Users.googleID })
-                .selectAll()
-                .where { Meetings.id eq id }
-                .firstOrNull()
-        } ?: return null
+        Meetings.innerJoin(Users, { Meetings.owner }, { Users.googleID })
+            .leftJoin(
+                joinedAlias,
+                { Meetings.id },
+                { joinedAlias[Memberships.meetingId] },
+                additionalConstraint = {
+                    joinedAlias[Memberships.status] eq MeetingMemberStatus.JOINED
+                },
+            )
+            .leftJoin(
+                waitingAlias,
+                { Meetings.id },
+                { waitingAlias[Memberships.meetingId] },
+                additionalConstraint = {
+                    waitingAlias[Memberships.status] eq MeetingMemberStatus.WAITLISTED
+                },
+            )
+            .select(
+                Meetings.columns +
+                    listOf(Users.name, Users.googleID, joinedCountExpr, waitingCountExpr)
+            )
+            .where { Meetings.id eq id }
+            .groupBy(*Meetings.columns.toTypedArray(), Users.name, Users.googleID)
+            .orderBy(Meetings.beginningTime, SortOrder.ASC)
+            .firstOrNull() ?: return@query null
 
     val membership =
-        query {
-                Memberships.selectAll()
-                    .where { (Memberships.meetingId eq id) and (Memberships.userId eq user) }
-                    .firstOrNull()
-            }
+        Memberships.selectAll()
+            .where { (Memberships.meetingId eq id) and (Memberships.userId eq user) }
+            .firstOrNull()
             ?.let { Membership.fromRow(it) }
 
     val bookmark =
-        query {
-            Bookmarks.selectAll()
-                .where { (Bookmarks.meetingId eq id) and (Bookmarks.userId eq user) }
-                .firstOrNull()
-        } != null
+        Bookmarks.selectAll()
+            .where { (Bookmarks.meetingId eq id) and (Bookmarks.userId eq user) }
+            .firstOrNull() != null
 
-    return GroupMeetingResponse(
-        GroupMeeting.fromRow(meeting),
+    val joinedCount = meeting[joinedCountExpr]
+    val waitingCount = meeting[waitingCountExpr]
+
+    GroupMeetingResponse(
+        GroupMeeting.fromRow(meeting, joinedCount, waitingCount),
         meeting[Users.name],
         membership,
         bookmark,
@@ -180,6 +215,24 @@ suspend fun getMeeting(id: String, user: String): GroupMeetingResponse? {
  * @param id The ID of the meeting to delete.
  */
 suspend fun deleteMeeting(id: String) = query { Meetings.deleteWhere { Meetings.id eq id } }
+
+/**
+ * Update a meeting by its [id].
+ *
+ * @param id The ID of the meeting to update.
+ * @param meeting The updated contents of the meeting.
+ */
+suspend fun updateMeeting(id: String, meeting: SubmittedGroupMeeting) = query {
+    Meetings.update({ Meetings.id eq id }) {
+        it[Meetings.title] = meeting.title
+        it[Meetings.description] = meeting.description
+        it[Meetings.location] = meeting.location
+        it[Meetings.beginningTime] = meeting.beginningTime
+        it[Meetings.endTime] = meeting.endTime
+        it[Meetings.tags] = Json.encodeToString(meeting.tags)
+        it[Meetings.capacity] = meeting.capacity
+    }
+}
 
 /**
  * Retrieve all [GroupMeeting]s.
@@ -196,11 +249,42 @@ suspend fun getMeetings(user: String? = null, type: GroupType? = null): List<Gro
             expr = (expr) and (Meetings.kind eq type)
         }
 
+        val joinedAlias = Memberships.alias("m_joined")
+        val waitingAlias = Memberships.alias("m_waiting")
+
+        val joinedCountExpr = joinedAlias[Memberships.userId].countDistinct()
+        val waitingCountExpr = waitingAlias[Memberships.userId].countDistinct()
+
         Meetings.innerJoin(Users, { Meetings.owner }, { Users.googleID })
-            .selectAll()
+            .leftJoin(
+                joinedAlias,
+                { Meetings.id },
+                { joinedAlias[Memberships.meetingId] },
+                additionalConstraint = {
+                    joinedAlias[Memberships.status] eq MeetingMemberStatus.JOINED
+                },
+            )
+            .leftJoin(
+                waitingAlias,
+                { Meetings.id },
+                { waitingAlias[Memberships.meetingId] },
+                additionalConstraint = {
+                    waitingAlias[Memberships.status] eq MeetingMemberStatus.WAITLISTED
+                },
+            )
+            .select(
+                Meetings.columns +
+                    listOf(Users.name, Users.googleID, joinedCountExpr, waitingCountExpr)
+            )
             .where(expr)
+            .groupBy(*Meetings.columns.toTypedArray(), Users.name, Users.googleID)
             .orderBy(Meetings.beginningTime, SortOrder.ASC)
-            .associate { row -> GroupMeeting.fromRow(row) to row[Users.name] }
+            .associate { row ->
+                val joinedCount = row[joinedCountExpr]
+                val waitingCount = row[waitingCountExpr]
+
+                GroupMeeting.fromRow(row, joinedCount, waitingCount) to row[Users.name]
+            }
     }
 
     // guest user
