@@ -90,12 +90,7 @@ private suspend fun WebSocketServerSession.wsEditMessage(
         return
     }
 
-    val isModerator =
-        meeting.membership.role == MeetingRole.HOST ||
-            meeting.membership.role == MeetingRole.MODERATOR
-    val isMessageOwner = message.userId == userId
-
-    if (!isModerator && !isMessageOwner) {
+    if (message.userId == userId) {
         sendAction(Outgoing.ERROR, "You do not have permission to edit this message.")
         return
     }
