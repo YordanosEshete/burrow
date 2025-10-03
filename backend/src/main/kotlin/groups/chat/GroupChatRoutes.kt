@@ -90,7 +90,7 @@ private suspend fun WebSocketServerSession.wsEditMessage(
         return
     }
 
-    if (message.userId == userId) {
+    if (message.userId != userId) {
         sendAction(Outgoing.ERROR, "You do not have permission to edit this message.")
         return
     }
