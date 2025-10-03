@@ -1,28 +1,30 @@
-import {useEffect, useLayoutEffect, useRef, useState} from "react"
-import useToken from "@features/auth/api/hooks/useToken.ts";
-import {BASE_URL} from "@api/Util.ts";
-import Chat from "@features/chat/components/Chat.tsx";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
+import useToken from "@features/auth/api/hooks/useToken.ts"
+import { BASE_URL } from "@api/Util.ts"
+import Chat from "@features/chat/components/Chat.tsx"
+import useUser from "@features/auth/api/hooks/useUser.ts"
+import type { GroupMeetingResponse } from "@features/groups/api/groups.types.ts"
+import type { ChatMember, ChatMessage } from "@features/chat/api/chat.types.ts"
 
-export type ChatMessage = {
-    date: number,
-    message: string
-    messageId: string,
-    userId: string
-}
-
+/**
+ * {@link ChatBox}
+ */
 type ChatBoxProps = {
-    meetingId: string
+    meeting: GroupMeetingResponse
 }
 
-type ChatMember = {
-    userId: string
-    name: string
-}
-
-export default function ChatBox({meetingId}: ChatBoxProps) {
+/**
+ * The chatbox for a meeting.
+ *
+ * @param meeting The meeting the ChatBox is for.
+ * @constructor
+ */
+export default function ChatBox({ meeting }: ChatBoxProps) {
     const [messages, setMessages] = useState<ChatMessage[]>([])
     const [text, setText] = useState("")
-    const [status, setStatus] = useState<"connecting" | "open" | "closed" | "error">("connecting")
+    const [status, setStatus] = useState<
+        "connecting" | "open" | "closed" | "error"
+    >("connecting")
     const [names, setNames] = useState<Record<string, string>>({})
 
     const listRef = useRef<HTMLDivElement | null>(null)
@@ -30,11 +32,24 @@ export default function ChatBox({meetingId}: ChatBoxProps) {
 
     const auth = useToken()
 
-    useEffect(() => {
-        if (auth === null || auth === "")
-            return
+    const user = useUser()
 
-        const base = BASE_URL.replaceAll("https://", "wss://").replaceAll("http://", "ws://")
+    const meetingId = meeting.meeting.id
+
+    const moderator = useMemo(() => {
+        return (
+            meeting.membership?.role === "MODERATOR" ||
+            meeting.membership?.role === "HOST"
+        )
+    }, [meeting.membership?.role])
+
+    useEffect(() => {
+        if (auth === null || auth === "") return
+
+        const base = BASE_URL.replaceAll("https://", "wss://").replaceAll(
+            "http://",
+            "ws://"
+        )
         const ws = new WebSocket(`${base}/groups/${meetingId}/chat`)
 
         socketRef.current = ws
@@ -44,10 +59,12 @@ export default function ChatBox({meetingId}: ChatBoxProps) {
         ws.onopen = () => {
             setStatus("open")
 
-            ws.send(JSON.stringify({
-                "action": "AUTHORIZE",
-                "token": auth
-            }))
+            ws.send(
+                JSON.stringify({
+                    action: "AUTHORIZE",
+                    token: auth
+                })
+            )
         }
 
         ws.onmessage = (ev) => {
@@ -57,10 +74,13 @@ export default function ChatBox({meetingId}: ChatBoxProps) {
                 switch (payload.action) {
                     // receive message history
                     case "HISTORY": {
-                        const messageHistory = payload.payload.messages as ChatMessage[]
+                        const messageHistory = payload.payload
+                            .messages as ChatMessage[]
 
-                        setMessages(messageHistory.sort((a, b) => a.date - b.date))
-                        break;
+                        setMessages(
+                            messageHistory.sort((a, b) => a.date - b.date)
+                        )
+                        break
                     }
 
                     // receive member names
@@ -70,37 +90,49 @@ export default function ChatBox({meetingId}: ChatBoxProps) {
                         for (let i = 0; members.length > i; i++) {
                             const member = members[i]
 
-                            setNames(prev => ({
-                                ...prev, [member.userId]: member.name
+                            setNames((prev) => ({
+                                ...prev,
+                                [member.userId]: member.name
                             }))
                         }
 
-                        break;
+                        break
                     }
 
                     // incoming message
                     case "NEW_MESSAGE":
-                        setMessages((prev) => [...prev, payload.payload as ChatMessage])
-                        break;
+                        setMessages((prev) => [
+                            ...prev,
+                            payload.payload as ChatMessage
+                        ])
+                        break
 
                     // deleted message
                     case "MESSAGE_DELETED":
-                        setMessages((prev) => prev.filter(message => message.messageId !== payload.payload.messageId))
-                        break;
+                        setMessages((prev) =>
+                            prev.filter(
+                                (message) =>
+                                    message.messageId !==
+                                    payload.payload.messageId
+                            )
+                        )
+                        break
 
                     // updated message
                     case "MESSAGE_UPDATED":
                         setMessages((prev) =>
                             prev.map((msg) =>
                                 msg.messageId === payload.payload.messageId
-                                    ? {...msg, message: payload.payload.newMessage}
+                                    ? {
+                                          ...msg,
+                                          message: payload.payload.newMessage
+                                      }
                                     : msg
                             )
                         )
-                        break;
+                        break
                 }
-            } catch {
-            }
+            } catch {}
         }
 
         ws.onerror = () => setStatus("error")
@@ -122,7 +154,7 @@ export default function ChatBox({meetingId}: ChatBoxProps) {
         const ws = socketRef.current
         if (!ws || ws.readyState !== WebSocket.OPEN) return
 
-        ws.send(JSON.stringify({action: "DELETE_MESSAGE", id}))
+        ws.send(JSON.stringify({ action: "DELETE_MESSAGE", id }))
         setText("")
     }
 
@@ -132,7 +164,7 @@ export default function ChatBox({meetingId}: ChatBoxProps) {
         const ws = socketRef.current
         if (!ws || ws.readyState !== WebSocket.OPEN) return
 
-        ws.send(JSON.stringify({action: "CREATE_MESSAGE", message: trimmed}))
+        ws.send(JSON.stringify({ action: "CREATE_MESSAGE", message: trimmed }))
         setText("")
     }
 
@@ -148,14 +180,28 @@ export default function ChatBox({meetingId}: ChatBoxProps) {
                 </span>
             </header>
 
-            <div ref={listRef} className="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-b from-white to-gray-50">
+            <div
+                ref={listRef}
+                className="flex-1 overflow-y-auto p-4 space-y-3 bg-gradient-to-b from-white to-gray-50"
+            >
                 {messages.length === 0 ? (
-                    <p className="text-sm text-gray-500">No messages yet. Start the conversation.</p>
+                    <p className="text-sm text-gray-500">
+                        No messages yet. Start the conversation.
+                    </p>
                 ) : (
-                    messages.map((message) => <Chat message={message} names={names}
-                                                    deleteButton={() => deleteMessage(message.messageId)}
-                                                    editButton={() => {
-                                                    }}/>)
+                    messages.map((message) => (
+                        <Chat
+                            message={message}
+                            editable={
+                                message.userId === user?.googleID || moderator
+                            }
+                            names={names}
+                            deleteButton={() =>
+                                deleteMessage(message.messageId)
+                            }
+                            editButton={() => {}}
+                        />
+                    ))
                 )}
             </div>
 
@@ -170,8 +216,11 @@ export default function ChatBox({meetingId}: ChatBoxProps) {
                         disabled={status !== "open"}
                     />
 
-                    <button onClick={send} className="cursor-pointer text-sm"
-                            disabled={status !== "open" || !text.trim()}>
+                    <button
+                        onClick={send}
+                        className="cursor-pointer text-sm"
+                        disabled={status !== "open" || !text.trim()}
+                    >
                         Send
                     </button>
                 </div>

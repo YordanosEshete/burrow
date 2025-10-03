@@ -1,6 +1,7 @@
 package app.burrow.groups.chat
 
 import app.burrow.account.VERIFIER
+import app.burrow.groups.chat.models.Action
 import app.burrow.groups.chat.models.Incoming
 import app.burrow.groups.chat.models.Outgoing
 import app.burrow.groups.membership.userInMeeting
@@ -213,11 +214,15 @@ val GROUP_CHAT_ROUTES: Route.() -> Unit = {
                                     ),
                                 )
 
+                                // gives the joining user the current members
+                                // lets the existing users see the user who just joined
+                                ChatSessions.broadcast(
+                                    id,
+                                    Action(Outgoing.MEMBERS, getChatMembers(id)),
+                                )
+
                                 val chatHistory = getChatHistory(id, 0)
                                 sendAction(Outgoing.HISTORY, chatHistory)
-
-                                val chatMembers = getChatMembers(id)
-                                sendAction(Outgoing.MEMBERS, chatMembers)
                             }
                         } else if (userId != null) {
                             handleIncomingRequest(action, incomingMsg, id, userId)
